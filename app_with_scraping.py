@@ -1,14 +1,10 @@
-# app_with_scraping.py
 import streamlit as st
 import pandas as pd
 import numpy as np
 import requests
-from datetime import datetime, timedelta
-import re
-import json
+from datetime import datetime
 import time
 import joblib
-import xml.etree.ElementTree as ET
 from bs4 import BeautifulSoup
 import warnings
 warnings.filterwarnings('ignore')
@@ -20,22 +16,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom CSS
-st.markdown("""
-<style>
-    .stProgress > div > div > div > div {
-        background-color: #1E3A8A;
-    }
-    .reportview-container .main .block-container {
-        padding-top: 2rem;
-    }
-    h1 {
-        color: #1E3A8A;
-    }
-</style>
-""", unsafe_allow_html=True)
 
-# Title
 st.title("🏦 SEC Credit Rating Predictor")
 st.markdown("Analyze company SEC filings and predict credit ratings using AI models")
 
@@ -93,59 +74,35 @@ def load_models():
 def get_cik_from_ticker(ticker):
     """Convert ticker to CIK number for SEC API"""
     
-    # SEC company ticker to CIK mapping
-    # In production, you would download the full mapping from SEC
     cik_mapping = {
-        "AAPL": "0000320193",    # Apple
-        "MSFT": "0000789019",    # Microsoft
-        "GOOGL": "0001652044",   # Google
-        "AMZN": "0001018724",    # Amazon
-        "META": "0001326801",    # Meta
-        "TSLA": "0001318605",    # Tesla
-        "JPM": "0000019617",     # JPMorgan
-        "WMT": "0000104169",     # Walmart
-        "XOM": "0000034088",     # Exxon Mobil
-        "JNJ": "0000200406",     # Johnson & Johnson
-        "V": "0001403161",       # Visa
-        "PG": "0000080424",      # Procter & Gamble
-        "NVDA": "0001045810",    # NVIDIA
-        "MA": "0001141391",      # Mastercard
-        "HD": "0000354950",      # Home Depot
-        "BAC": "0000070858",     # Bank of America
-        "DIS": "0001001039",     # Disney
-        "NFLX": "0001065280",    # Netflix
-        "CSCO": "0000858877",    # Cisco
-        "INTC": "0000050863",    # Intel
-        "IBM": "0000051143",     # IBM
-        "GS": "0000886982",      # Goldman Sachs
-        "KO": "0000021344",      # Coca-Cola
-        "PEP": "0000077476",     # PepsiCo
-        "MRK": "0000310158",     # Merck
-        "CVX": "0000093410",     # Chevron
-        "CMCSA": "0001166691",   # Comcast
+        "AAPL": "0000320193", "MSFT": "0000789019", "GOOGL": "0001652044",
+        "AMZN": "0001018724", "META": "0001326801", "TSLA": "0001318605",
+        "JPM": "0000019617", "WMT": "0000104169", "XOM": "0000034088",
+        "JNJ": "0000200406", "V": "0001403161", "PG": "0000080424",
+        "NVDA": "0001045810", "MA": "0001141391", "HD": "0000354950",
+        "BAC": "0000070858", "DIS": "0001001039", "NFLX": "0001065280",
+        "CSCO": "0000858877", "INTC": "0000050863", "IBM": "0000051143",
+        "GS": "0000886982", "KO": "0000021344", "PEP": "0000077476",
+        "MRK": "0000310158", "CVX": "0000093410", "CMCSA": "0001166691"
     }
     
     if ticker in cik_mapping:
         return cik_mapping[ticker]
-    else:
-        # Try to fetch from SEC API
-        try:
-            url = f"https://www.sec.gov/files/company_tickers.json"
-            response = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
-            data = response.json()
-            
-            for company in data.values():
-                if company['ticker'] == ticker:
-                    return str(company['cik_str']).zfill(10)
-        except:
-            pass
-        
-        return None
+    
+    try:
+        response = requests.get("https://www.sec.gov/files/company_tickers.json",
+                               headers={'User-Agent': 'Mozilla/5.0'})
+        data = response.json()
+        for company in data.values():
+            if company['ticker'] == ticker:
+                return str(company['cik_str']).zfill(10)
+    except:
+        pass
+    return None
 
 # Function to fetch SEC filings
 def fetch_sec_filings(cik, filing_type, years):
     """Fetch SEC filings using web scraping/API"""
-    
     progress_bar = st.progress(0)
     status_text = st.empty()
     
@@ -153,7 +110,6 @@ def fetch_sec_filings(cik, filing_type, years):
         status_text.text("🔍 Finding company information...")
         progress_bar.progress(10)
         
-        # Get company submissions
         submissions_url = f"https://data.sec.gov/submissions/CIK{cik}.json"
         headers = {
             'User-Agent': 'Your Company Name your-email@domain.com',
@@ -167,14 +123,12 @@ def fetch_sec_filings(cik, filing_type, years):
         progress_bar.progress(30)
         status_text.text("📋 Analyzing filings...")
         
-        # Get recent filings
         filings = submissions.get('filings', {}).get('recent', {})
         accession_numbers = filings.get('accessionNumber', [])
         filing_dates = filings.get('filingDate', [])
         forms = filings.get('form', [])
         primary_documents = filings.get('primaryDocument', [])
         
-        # Filter for requested filing type
         target_filings = []
         current_year = datetime.now().year
         
@@ -196,24 +150,17 @@ def fetch_sec_filings(cik, filing_type, years):
         status_text.text(f"📄 Found {len(target_filings)} {filing_type} filings")
         progress_bar.progress(50)
         
-        # Process each filing
         all_financial_data = []
         
-        for idx, filing in enumerate(target_filings[:5]):  # Limit to 5 filings
+        for idx, filing in enumerate(target_filings[:5]):
             status_text.text(f"📊 Processing filing {idx + 1}/{len(target_filings[:5])}...")
             
-            # Get the filing data
             accession = filing['accession_number'].replace('-', '')
             filing_url = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession}/{filing['primary_doc']}"
-            
-            # Fetch and parse the filing
             filing_response = requests.get(filing_url, headers=headers)
             
             if filing_response.status_code == 200:
-                # Parse HTML content
                 soup = BeautifulSoup(filing_response.content, 'html.parser')
-                
-                # Extract financial data (simplified - in reality you'd need to parse XBRL)
                 financial_data = extract_financial_data_from_filing(soup, filing['filing_date'])
                 
                 if financial_data:

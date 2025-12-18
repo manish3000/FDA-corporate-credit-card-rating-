@@ -1,29 +1,16 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 import numpy as np
 
-# -----------------------------------------------------------------------------
-# 1. PAGE CONFIGURATION
-# -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="Corporate Credit & Sentiment Analysis",
-    page_icon="bar_chart",
+    page_icon="📊",
     layout="wide"
 )
-
-# -----------------------------------------------------------------------------
-# 2. DATA LOADING
-# -----------------------------------------------------------------------------
 @st.cache_data
 def load_data():
-    """
-    Loads the financial and NLP data from CSV.
-    """
-    # Load the specific file requested
-    df = pd.read_csv("credit_ratings_multimodal.csv")
-    return df
+    return pd.read_csv("credit_ratings_multimodal.csv")
 
 try:
     df = load_data()
@@ -31,13 +18,7 @@ except Exception as e:
     st.error(f"Error loading 'credit_ratings_multimodal.csv'. Please ensure the file is in the same directory as this script.\n\nError details: {e}")
     st.stop()
 
-# -----------------------------------------------------------------------------
-# 3. SIDEBAR - FILTERS
-# -----------------------------------------------------------------------------
 st.sidebar.header("Filter Dashboard")
-
-# Sector Filter
-# Check if 'Sector' exists to prevent errors if schema differs
 if 'Sector' in df.columns:
     all_sectors = sorted(df['Sector'].astype(str).unique())
     selected_sectors = st.sidebar.multiselect("Select Sector", all_sectors, default=all_sectors)
@@ -53,26 +34,17 @@ else:
     selected_ratings = []
     st.sidebar.warning("Column 'Rating_Merged' not found.")
 
-# Filter Logic
-if not selected_sectors or not selected_ratings:
-    df_filtered = df.copy()
-else:
-    df_filtered = df[
-        (df['Sector'].isin(selected_sectors)) & 
-        (df['Rating_Merged'].isin(selected_ratings))
-    ]
+df_filtered = df if not selected_sectors or not selected_ratings else df[
+    (df['Sector'].isin(selected_sectors)) & 
+    (df['Rating_Merged'].isin(selected_ratings))
+]
 
 st.sidebar.markdown("---")
 st.sidebar.markdown(f"**Data Points:** {len(df_filtered)}")
 if 'Ticker' in df.columns:
     st.sidebar.markdown(f"**Companies:** {df_filtered['Ticker'].nunique()}")
 
-# -----------------------------------------------------------------------------
-# 4. MAIN DASHBOARD UI
-# -----------------------------------------------------------------------------
 st.title("📊 Corporate Financial & NLP Analysis")
-
-# Top Level Metrics
 col1, col2, col3, col4 = st.columns(4)
 col1.metric("Total Companies", len(df_filtered))
 
@@ -91,10 +63,7 @@ if 'nlp_sentiment' in df_filtered.columns:
 else:
     col4.metric("Avg NLP Sentiment", "N/A")
 
-# Tabs for organization
 tab1, tab2, tab3, tab4 = st.tabs(["Market Overview", "Financial Deep Dive", "NLP Sentiment Analysis", "Company Finder"])
-
-# --- TAB 1: MARKET OVERVIEW ---
 with tab1:
     st.subheader("Market Composition")
     
@@ -115,9 +84,7 @@ with tab1:
             st.plotly_chart(fig_rating, use_container_width=True)
 
     st.markdown("**Financial Heatmap (Average Metrics by Sector)**")
-    # Group by Sector and get mean of key metrics
     heatmap_cols = ['currentRatio', 'netProfitMargin', 'debtEquityRatio', 'returnOnEquity', 'nlp_sentiment']
-    # Filter only columns that actually exist
     existing_heatmap_cols = [c for c in heatmap_cols if c in df_filtered.columns]
     
     if 'Sector' in df_filtered.columns and existing_heatmap_cols:
@@ -134,16 +101,11 @@ with tab1:
     else:
         st.info("Insufficient data for Heatmap.")
 
-# --- TAB 2: FINANCIAL DEEP DIVE ---
 with tab2:
     st.subheader("Financial Ratios Analysis")
     
-    # Selector for Metrics
-    financial_options = [
-        'netProfitMargin', 'returnOnEquity', 'debtEquityRatio', 
-        'currentRatio', 'quickRatio', 'assetTurnover'
-    ]
-    # Filter options based on available columns
+    financial_options = ['netProfitMargin', 'returnOnEquity', 'debtEquityRatio', 
+                         'currentRatio', 'quickRatio', 'assetTurnover']
     available_fin_options = [c for c in financial_options if c in df_filtered.columns]
     
     if available_fin_options:
@@ -179,17 +141,14 @@ with tab2:
     else:
         st.warning("Selected financial metrics not found in dataset.")
 
-# --- TAB 3: NLP SENTIMENT ANALYSIS ---
 with tab3:
     st.subheader("NLP & Risk Analytics")
     st.info("Visualizing insights extracted from MD&A reports (Sentiment, Risk, Uncertainty).")
     
     required_nlp = ['nlp_sentiment', 'nlp_risk', 'Rating_Merged', 'nlp_readability', 'Sector', 'Name']
-    # Check availability
     available_nlp = [c for c in required_nlp if c in df_filtered.columns]
     
     if len(available_nlp) == len(required_nlp):
-        # Drop rows where NLP data is missing for clean plotting
         nlp_df = df_filtered.dropna(subset=['nlp_sentiment', 'nlp_risk'])
         
         c1, c2 = st.columns(2)
@@ -214,7 +173,6 @@ with tab3:
             existing_nlp_attrs = [a for a in nlp_attributes if a in nlp_df.columns]
             
             if existing_nlp_attrs:
-                # Melt for grouped bar chart
                 nlp_melted = nlp_df.groupby('Sector')[existing_nlp_attrs].mean().reset_index().melt(id_vars='Sector')
                 
                 fig_radar = px.bar(
@@ -241,18 +199,12 @@ with tab3:
     else:
         st.warning("Some NLP columns are missing from the dataset. Please check CSV headers.")
 
-# --- TAB 4: COMPANY FINDER ---
 with tab4:
     st.subheader("Single Company Drill-down")
     
     if 'Ticker' in df.columns:
-        # Search box
         selected_ticker = st.selectbox("Search Company by Ticker:", df['Ticker'].unique())
-        
-        # Get Company Data
         company_data = df[df['Ticker'] == selected_ticker].iloc[0]
-        
-        # Display Header
         name = company_data.get('Name', 'Unknown')
         ticker = company_data.get('Ticker', 'Unknown')
         sector = company_data.get('Sector', 'Unknown')
@@ -262,7 +214,6 @@ with tab4:
         st.markdown(f"### {name} ({ticker})")
         st.markdown(f"**Sector:** {sector} | **Rating:** {rating} | **Agency:** {agency}")
         
-        # 3 Columns for stats
         dc1, dc2, dc3 = st.columns(3)
         
         with dc1:
@@ -287,7 +238,6 @@ with tab4:
 
         with dc3:
             st.markdown("#### 🧠 NLP Analysis")
-            # Handle potential missing NLP data for display
             sentiment_val = company_data.get('nlp_sentiment', np.nan)
             risk_val = company_data.get('nlp_risk', np.nan)
             
@@ -299,9 +249,6 @@ with tab4:
     else:
         st.error("Ticker column not found to perform search.")
 
-# -----------------------------------------------------------------------------
-# 5. DOWNLOAD DATA
-# -----------------------------------------------------------------------------
 st.markdown("---")
 with st.expander("View & Download Filtered Data"):
     st.dataframe(df_filtered)

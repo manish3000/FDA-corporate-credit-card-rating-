@@ -1,11 +1,7 @@
-# sec_scraper.py - Advanced SEC data scraping module
 import requests
 import pandas as pd
-import numpy as np
 from datetime import datetime
 import re
-import json
-import time
 from bs4 import BeautifulSoup
 import xml.etree.ElementTree as ET
 
@@ -22,23 +18,18 @@ class SECScraper:
     def get_cik_from_ticker(self, ticker):
         """Get CIK from ticker symbol"""
         try:
-            # Try local mapping first
             cik_map = self._load_cik_mapping()
             if ticker in cik_map:
                 return cik_map[ticker]
             
-            # Try SEC API
-            url = "https://www.sec.gov/files/company_tickers.json"
-            response = requests.get(url, headers=self.headers)
+            response = requests.get("https://www.sec.gov/files/company_tickers.json", 
+                                   headers=self.headers)
             data = response.json()
-            
             for company in data.values():
                 if company['ticker'] == ticker:
                     return str(company['cik_str']).zfill(10)
-                    
         except Exception as e:
             print(f"Error getting CIK: {e}")
-        
         return None
     
     def _load_cik_mapping(self):
@@ -57,8 +48,6 @@ class SECScraper:
     
     def get_company_filings(self, cik, filing_type="10-K", years=3):
         """Get company filings from SEC"""
-        
-        # Get submissions
         submissions_url = f"{self.base_url}/submissions/CIK{cik}.json"
         response = requests.get(submissions_url, headers=self.headers)
         
@@ -67,14 +56,11 @@ class SECScraper:
         
         submissions = response.json()
         filings = submissions.get('filings', {}).get('recent', {})
-        
-        # Extract filing information
         forms = filings.get('form', [])
         accession_numbers = filings.get('accessionNumber', [])
         filing_dates = filings.get('filingDate', [])
         primary_docs = filings.get('primaryDocument', [])
         
-        # Filter by type and date
         target_filings = []
         current_year = datetime.now().year
         
@@ -88,37 +74,24 @@ class SECScraper:
                         'form': forms[i],
                         'primary_document': primary_docs[i]
                     })
-        
-        return target_filings[:5]  # Limit to 5 most recent
+        return target_filings[:5]
     
     def get_filing_data(self, cik, accession_number, primary_document):
         """Get filing data and extract financial information"""
-        
-        # Construct filing URL
         accession_clean = accession_number.replace('-', '')
         filing_url = f"{self.base_url}/Archives/edgar/data/{cik}/{accession_clean}/{primary_document}"
-        
         response = requests.get(filing_url, headers=self.headers)
         
         if response.status_code != 200:
             return None
         
-        # Parse HTML content
         soup = BeautifulSoup(response.content, 'html.parser')
-        
-        # Try to find XBRL data
         xbrl_data = self._extract_xbrl_data(soup)
         
-        if xbrl_data:
-            return self._parse_xbrl_financials(xbrl_data)
-        else:
-            # Fall back to HTML parsing
-            return self._parse_html_financials(soup)
+        return self._parse_xbrl_financials(xbrl_data) if xbrl_data else self._parse_html_financials(soup)
     
     def _extract_xbrl_data(self, soup):
         """Extract XBRL data from filing"""
-        
-        # Look for XBRL instance documents
         xbrl_links = soup.find_all('a', href=re.compile(r'.*\.xml$'))
         
         for link in xbrl_links:
@@ -138,20 +111,14 @@ class SECScraper:
     
     def _parse_xbrl_financials(self, xbrl_content):
         """Parse XBRL financial data"""
-        
         try:
-            # Parse XML
             root = ET.fromstring(xbrl_content)
-            
-            # Namespace handling
             ns = {
                 'xbrli': 'http://www.xbrl.org/2003/instance',
                 'us-gaap': 'http://fasb.org/us-gaap/2021-01-31'
             }
-            
             financials = {}
             
-            # Extract key financial metrics
             metrics = {
                 'Assets': 'Assets',
                 'Liabilities': 'Liabilities',
@@ -190,21 +157,13 @@ class SECScraper:
     
     def _parse_html_financials(self, soup):
         """Parse financial data from HTML tables"""
-        
         financials = {}
-        
-        # Look for financial statement tables
         tables = soup.find_all('table')
         
         for table in tables:
-            # Try to identify financial tables
             table_text = table.get_text().lower()
-            
-            # Check for balance sheet
             if any(keyword in table_text for keyword in ['balance sheet', 'statement of financial position']):
                 financials.update(self._parse_balance_sheet(table))
-            
-            # Check for income statement
             elif any(keyword in table_text for keyword in ['income statement', 'statement of operations']):
                 financials.update(self._parse_income_statement(table))
         
