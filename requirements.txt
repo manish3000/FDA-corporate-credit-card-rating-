@@ -1,0 +1,24 @@
+# requirements_fixed.txt
+# Fixed versions to prevent numpy._core error
+
+# Core data science stack
+numpy==1.24.3  # Stable version without _core module issue
+pandas==2.0.3
+scikit-learn==1.3.0
+joblib==1.3.2
+
+# Streamlit and web scraping
+streamlit==1.28.0
+requests==2.31.0
+beautifulsoup4==4.12.2
+lxml==4.9.3
+
+# Visualization
+plotly==5.17.0
+
+# XGBoost (if used in models)
+xgboost==1.7.6
+
+# Optional: for neural networks
+tensorflow==2.13.0  # or tensorflow-cpu
+keras==2.13.1

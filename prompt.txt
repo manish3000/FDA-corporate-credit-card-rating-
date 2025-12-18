@@ -1,0 +1,33 @@
+●Objective: Train and evaluate multimodal machine learning models for credit rating prediction using the extracted dataset.
+●Tasks: The Task involves two main prediction tasks:
+oBinary Classification – Classify companies as Investment Grade (BBB and above) or Below Investment Grade (BB and below).
+oMulti-Class Classification – Predict one of six rating categories: AA+, A, BBB, BB, B, or CCC–.
+
+
+perform 
+linear model
+KNN , naive bays decision tree, random forest, XGboost, svm
+simple DNN ,Ensemble Techniques (Meta-Models)
+
+them give me Accuracy
+Balanced Accuracy
+Precision
+Recall
+Fl -Score
+Top-K
+ROC-AUC
+Log Loss
+
+Error Type
+False Positive
+False Negative
+Type I Error
+Type 11 Error
+Bias Error
+Variance Error
+Misclassification Error
+Cost-Sensitive Error
+
+
+
+than final give me best model ranking based on accuracy
